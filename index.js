@@ -25,15 +25,36 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
     const servicesCollection = client.db('carDoctorDB').collection('services')
+    const bookingCollection = client.db('carDoctorDB').collection('checkout')
+
+    app.get('/checkout', async(req, res) => {
+      let query = {}
+      if(req.query?.email){
+        query = {email: req.query.email}
+      }
+      const result = await bookingCollection.find(query).toArray();
+      res.send(result)
+    })
+
+
     app.post('/checkout', async(req, res) => {
       const order = req.body;
+      console.log(order);
       const doc = {
-        name: order.name,
+        customerName: order.customerName,
         email: order.email,
         phone: order.phone,
-        message: order.message
+        message: order.message,
+        serviceName: order.serviceName,
+        img: order.img,
+        date: order.date,
+        price: order.price
       }
-      const result = await servicesCollection.insertOne(doc)
+      const result = await bookingCollection.insertOne(doc)
+      res.send(result)
+    })
+    app.get('/checkout', async(req, res) => {
+      const result = await bookingCollection.find().toArray()
       res.send(result)
     })
     app.get('/serviceDetails/:id', async(req, res) => {
@@ -41,6 +62,16 @@ async function run() {
       // console.log(id);
       const query = { _id: new ObjectId(id)}
       const result = await servicesCollection.findOne(query)
+      res.send(result)
+    })
+    app.get('/services/:id', async(req, res) => {
+      const id = req.params.id;
+      // console.log(id);
+      const query = { _id: new ObjectId(id)}
+      const options = {
+        projection: {img: 1, title: 1, price: 1}
+      }
+      const result = await servicesCollection.findOne(query, options)
       res.send(result)
     })
 
