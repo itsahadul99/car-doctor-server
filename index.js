@@ -1,13 +1,19 @@
 const express = require('express');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 require('dotenv').config()
 const cors = require('cors')
 const app = express()
 const port = process.env.PORT || 5000;
 
 // middleware
-app.use(cors())
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true
+}))
 app.use(express.json())
+app.use(cookieParser())
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ifklbg0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -26,18 +32,31 @@ async function run() {
     // await client.connect();
     const servicesCollection = client.db('carDoctorDB').collection('services')
     const bookingCollection = client.db('carDoctorDB').collection('checkout')
+    // auth related api
 
-    app.get('/checkout', async(req, res) => {
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.TOKEN_SECRETE, { expiresIn: '1hr' })
+      res
+        .cookie('token', token, {
+          httpOnly: true,
+          secure: false
+        })
+        .send({success: true})
+    })
+
+    // services related api
+    app.get('/checkout', async (req, res) => {
       let query = {}
-      if(req.query?.email){
-        query = {email: req.query.email}
+      if (req.query?.email) {
+        query = { email: req.query.email }
       }
       const result = await bookingCollection.find(query).toArray();
       res.send(result)
     })
 
 
-    app.post('/checkout', async(req, res) => {
+    app.post('/checkout', async (req, res) => {
       const order = req.body;
       console.log(order);
       const doc = {
@@ -53,32 +72,32 @@ async function run() {
       const result = await bookingCollection.insertOne(doc)
       res.send(result)
     })
-    app.get('/checkout', async(req, res) => {
+    app.get('/checkout', async (req, res) => {
       const result = await bookingCollection.find().toArray()
       res.send(result)
     })
-    app.get('/serviceDetails/:id', async(req, res) => {
+    app.get('/serviceDetails/:id', async (req, res) => {
       const id = req.params.id;
       // console.log(id);
-      const query = { _id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await servicesCollection.findOne(query)
       res.send(result)
     })
-    app.get('/services/:id', async(req, res) => {
+    app.get('/services/:id', async (req, res) => {
       const id = req.params.id;
       // console.log(id);
-      const query = { _id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const options = {
-        projection: {img: 1, title: 1, price: 1}
+        projection: { img: 1, title: 1, price: 1 }
       }
       const result = await servicesCollection.findOne(query, options)
       res.send(result)
     })
 
-    app.get('/services', async(req, res) => {
-        const query = servicesCollection.find()
-        const result = await query.toArray()
-        res.send(result)
+    app.get('/services', async (req, res) => {
+      const query = servicesCollection.find()
+      const result = await query.toArray()
+      res.send(result)
     })
 
     // Send a ping to confirm a successful connection
@@ -92,8 +111,8 @@ async function run() {
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
-    res.send("Car doctor server is running!");
+  res.send("Car doctor server is running!");
 })
 app.listen(port, () => {
-    console.log(`Car doctor server is running on port: ${port}`);
+  console.log(`Car doctor server is running on port: ${port}`);
 })
