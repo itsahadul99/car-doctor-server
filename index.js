@@ -25,7 +25,20 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
-
+// custom middleware
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token;
+  if (!token) {
+    return res.status(401).send({ message: 'Unauthorized' })
+  }
+  jwt.verify(token, process.env.TOKEN_SECRETE, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: "Unauthorized access" })
+    }
+    req.user = decoded;
+    next()
+  })
+}
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -36,17 +49,22 @@ async function run() {
 
     app.post('/jwt', async (req, res) => {
       const user = req.body;
+      // console.log('token', req.body.token);
       const token = jwt.sign(user, process.env.TOKEN_SECRETE, { expiresIn: '1hr' })
       res
         .cookie('token', token, {
           httpOnly: true,
           secure: false
         })
-        .send({success: true})
+        .send({ success: true })
     })
 
     // services related api
-    app.get('/checkout', async (req, res) => {
+    app.get('/checkout',verifyToken, async (req, res) => {
+      // console.log(req.user);
+      if(req.user?.email !== req.query?.email){
+        return res.status(403).send({message: "Unauthorized"})
+      }
       let query = {}
       if (req.query?.email) {
         query = { email: req.query.email }
@@ -58,7 +76,6 @@ async function run() {
 
     app.post('/checkout', async (req, res) => {
       const order = req.body;
-      console.log(order);
       const doc = {
         customerName: order.customerName,
         email: order.email,
