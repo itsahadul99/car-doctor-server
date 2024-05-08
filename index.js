@@ -28,6 +28,7 @@ const client = new MongoClient(uri, {
 // custom middleware
 const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token;
+  // console.log(req.method, req.url);
   if (!token) {
     return res.status(401).send({ message: 'Unauthorized' })
   }
@@ -49,21 +50,26 @@ async function run() {
 
     app.post('/jwt', async (req, res) => {
       const user = req.body;
-      // console.log('token', req.body.token);
-      const token = jwt.sign(user, process.env.TOKEN_SECRETE, { expiresIn: '1hr' })
+      const token = jwt.sign(user, process.env.TOKEN_SECRETE, { expiresIn: '365d' })
       res
         .cookie('token', token, {
           httpOnly: true,
-          secure: false
+          secure: true,
+          sameSite: 'none'
         })
         .send({ success: true })
     })
-
+    app.post('/logout', async (req, res) => {
+      res
+        .clearCookie('token', { maxAge: 0 })
+        .send({ success: true })
+    })
     // services related api
-    app.get('/checkout',verifyToken, async (req, res) => {
+    app.get('/checkout', verifyToken, async (req, res) => {
       // console.log(req.user);
-      if(req.user?.email !== req.query?.email){
-        return res.status(403).send({message: "Unauthorized"})
+      // console.log(req.cookies);
+      if (req.user?.email !== req.query?.email) {
+        return res.status(403).send({ message: "Forbidden" })
       }
       let query = {}
       if (req.query?.email) {
@@ -73,7 +79,7 @@ async function run() {
       res.send(result)
     })
 
-
+    // confirm check out 
     app.post('/checkout', async (req, res) => {
       const order = req.body;
       const doc = {
@@ -89,10 +95,35 @@ async function run() {
       const result = await bookingCollection.insertOne(doc)
       res.send(result)
     })
+    // get all checkout data on booking page
     app.get('/checkout', async (req, res) => {
       const result = await bookingCollection.find().toArray()
       res.send(result)
     })
+
+    // delete a booking services
+    app.delete('/checkout/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+      const result = await bookingCollection.deleteOne(query)
+      res.send(result)
+    })
+
+    // update status
+    app.patch('/checkout/:id', async (req, res) => {
+      const id = req.params.id;
+      const updateStatus = req.body;
+      const filter = { _id: new ObjectId(id) }
+      const updateDoc = {
+        $set: {
+          status: updateStatus.status
+        }
+      }
+      const result = await bookingCollection.updateOne(filter, updateDoc)
+      res.send(result)
+    })
+
+    // services details
     app.get('/serviceDetails/:id', async (req, res) => {
       const id = req.params.id;
       // console.log(id);
@@ -100,6 +131,8 @@ async function run() {
       const result = await servicesCollection.findOne(query)
       res.send(result)
     })
+
+    // get dynamic services some data
     app.get('/services/:id', async (req, res) => {
       const id = req.params.id;
       // console.log(id);
@@ -111,6 +144,7 @@ async function run() {
       res.send(result)
     })
 
+    // get all the services
     app.get('/services', async (req, res) => {
       const query = servicesCollection.find()
       const result = await query.toArray()
